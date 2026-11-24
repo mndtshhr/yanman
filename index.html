@@ -5,11 +5,8 @@
 <style>
 body{font-family:sans-serif;margin:0;padding:12px;background:#f3f6fa;color:#222}
 #hero{border-radius:14px;padding:14px 16px;margin-bottom:10px;color:#fff;transition:background .6s;box-shadow:0 2px 8px #0002}
-.top{display:flex;justify-content:space-between;align-items:center}
 #dt{font-size:20px;font-weight:bold}
 #gr{font-size:13px;opacity:.9;margin-top:2px}
-#ck{font-size:36px;font-weight:300;letter-spacing:1px}
-#sm{margin-top:8px;padding-top:8px;border-top:1px solid #fff5;font-size:15px;min-height:20px}
 .row{display:flex;gap:6px;margin-bottom:8px}
 input{flex:1;padding:8px;font-size:16px;min-width:0}
 button{padding:8px 14px;font-size:15px;white-space:nowrap}
@@ -21,10 +18,7 @@ button{padding:8px 14px;font-size:15px;white-space:nowrap}
 .bar i{display:block;width:22px;background:#4a90e2;border-radius:3px 3px 0 0}
 #st{font-size:13px;color:#555}
 </style></head><body>
-<div id="hero">
- <div class="top"><div><div id="dt"></div><div id="gr"></div></div><div id="ck"></div></div>
- <div id="sm"></div>
-</div>
+<div id="hero"><div id="dt"></div><div id="gr"></div></div>
 <div class="row"><input id="c1" placeholder="地点1"><input id="c2" placeholder="地点2"><button onclick="load()">表示</button></div>
 <div id="st"></div><div id="out"></div><div id="astro"></div>
 <script>
@@ -46,13 +40,8 @@ function hero(){
  $("hero").style.background=`linear-gradient(135deg,${g[0]},${g[1]})`;
  $("dt").textContent=`${d.getMonth()+1}月${d.getDate()}日(${"日月火水木金土"[d.getDay()]})`;
  $("gr").textContent=g[2];
- $("ck").textContent=String(h).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
- if(data.length){
-  const{name,f}=data[0],w=W(f.weather_code[0]);
-  $("sm").textContent=`${w[1]} ${name} ${w[0]}　${Math.round(f.temperature_2m_max[0])}° / ${Math.round(f.temperature_2m_min[0])}°　降水 ${f.precipitation_probability_max[0]||0}%`;
- }else $("sm").textContent="地点を入れて「表示」を押してください";
 }
-hero();setInterval(hero,1000);
+hero();setInterval(hero,60000);
 /* ---- 天気 ---- */
 async function geo(n){
  const k=n.replace(/[都府県市]$/,"");
@@ -83,7 +72,6 @@ async function load(){
   }catch(e){errs.push(e)}
  }
  $("st").textContent=errs.length?"エラー: "+errs.join(" / "):"";
- hero();
  try{astro()}catch(e){$("astro").textContent="天文情報エラー: "+e}
 }
 /* ---- 天文計算(簡易式。誤差は月の出入り数分、節気は±1日程度) ---- */
