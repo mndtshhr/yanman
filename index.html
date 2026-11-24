@@ -1,12 +1,18 @@
 <!DOCTYPE html>
 <html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>天気読み上げ</title>
+<title>天気</title>
 <style>
 body{font-family:sans-serif;margin:0;padding:12px;background:#f3f6fa;color:#222}
+#hero{border-radius:14px;padding:14px 16px;margin-bottom:10px;color:#fff;transition:background .6s;box-shadow:0 2px 8px #0002}
+.top{display:flex;justify-content:space-between;align-items:center}
+#dt{font-size:20px;font-weight:bold}
+#gr{font-size:13px;opacity:.9;margin-top:2px}
+#ck{font-size:36px;font-weight:300;letter-spacing:1px}
+#sm{margin-top:8px;padding-top:8px;border-top:1px solid #fff5;font-size:15px;min-height:20px}
 .row{display:flex;gap:6px;margin-bottom:8px}
 input{flex:1;padding:8px;font-size:16px;min-width:0}
-button{padding:8px 12px;font-size:15px}
+button{padding:8px 14px;font-size:15px;white-space:nowrap}
 .city,.astro{background:#fff;border-radius:10px;padding:10px;margin:10px 0}
 .astro{line-height:1.8;font-size:14px}
 .days{display:flex;gap:4px;overflow-x:auto}
@@ -15,12 +21,11 @@ button{padding:8px 12px;font-size:15px}
 .bar i{display:block;width:22px;background:#4a90e2;border-radius:3px 3px 0 0}
 #st{font-size:13px;color:#555}
 </style></head><body>
-<h3>週間天気(降水)</h3>
-<div class="row"><input id="c1" placeholder="地点1 例:福岡"><input id="c2" placeholder="地点2 例:東京"></div>
-<div class="row">
-<button onclick="load()">表示</button>
-<button onclick="speak()">今すぐ読み上げ</button>
-<button onclick="arm()">毎朝9時ON</button></div>
+<div id="hero">
+ <div class="top"><div><div id="dt"></div><div id="gr"></div></div><div id="ck"></div></div>
+ <div id="sm"></div>
+</div>
+<div class="row"><input id="c1" placeholder="地点1"><input id="c2" placeholder="地点2"><button onclick="load()">表示</button></div>
 <div id="st"></div><div id="out"></div><div id="astro"></div>
 <script>
 const W=c=>c==0?["快晴","☀️"]:c<=2?["晴れ時々くもり","🌤️"]:c==3?["くもり","☁️"]:c<=48?["霧","🌫️"]:
@@ -33,6 +38,22 @@ const P={"東京":[35.69,139.69],"大阪":[34.69,135.50],"福岡":[33.59,130.40]
 let data=[];
 const $=id=>document.getElementById(id);
 $("c1").value=localStorage.c1||"";$("c2").value=localStorage.c2||"";
+/* ---- ヘッダー ---- */
+function hero(){
+ const d=new Date(),h=d.getHours();
+ const g=h<5?["#1b2a4e","#3d2c6e","こんばんは"]:h<11?["#f6a56b","#f28aa0","おはようございます"]:
+  h<16?["#3d7fd6","#7fb8f0","こんにちは"]:h<19?["#f08a5d","#6a5acd","おつかれさまです"]:["#1b2a4e","#3d2c6e","こんばんは"];
+ $("hero").style.background=`linear-gradient(135deg,${g[0]},${g[1]})`;
+ $("dt").textContent=`${d.getMonth()+1}月${d.getDate()}日(${"日月火水木金土"[d.getDay()]})`;
+ $("gr").textContent=g[2];
+ $("ck").textContent=String(h).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
+ if(data.length){
+  const{name,f}=data[0],w=W(f.weather_code[0]);
+  $("sm").textContent=`${w[1]} ${name} ${w[0]}　${Math.round(f.temperature_2m_max[0])}° / ${Math.round(f.temperature_2m_min[0])}°　降水 ${f.precipitation_probability_max[0]||0}%`;
+ }else $("sm").textContent="地点を入れて「表示」を押してください";
+}
+hero();setInterval(hero,1000);
+/* ---- 天気 ---- */
 async function geo(n){
  const k=n.replace(/[都府県市]$/,"");
  if(P[k])return{name:n,latitude:P[k][0],longitude:P[k][1]};
@@ -62,6 +83,7 @@ async function load(){
   }catch(e){errs.push(e)}
  }
  $("st").textContent=errs.length?"エラー: "+errs.join(" / "):"";
+ hero();
  try{astro()}catch(e){$("astro").textContent="天文情報エラー: "+e}
 }
 /* ---- 天文計算(簡易式。誤差は月の出入り数分、節気は±1日程度) ---- */
@@ -138,44 +160,6 @@ function astro(){
  🌅 日の出 ${f.sunrise[0].slice(11,16)} ／ 日の入 ${f.sunset[0].slice(11,16)}(昼 ${h}時間${m}分)<br>
  🌙 月の出 ${mr} ／ 月の入 ${ms}<br>
  🪐 金星 ${ven} ／ 水星 ${mer} ／ 土星 ${sat}</div>`;
-}
-function text(){
- return data.map(({name,f})=>{
-  const w=W(f.weather_code[0])[0],p=f.precipitation_probability_max[0]||0;
-  const rain=f.time.map((t,i)=>(f.precipitation_probability_max[i]||0)>=60?i:-1).filter(i=>i>=0);
-  return `${name}の今日は${w}、最高${Math.round(f.temperature_2m_max[0])}度、最低${Math.round(f.temperature_2m_min[0])}度、降水確率${p}パーセント。`+
-  (rain.length?`今週は${rain.map(i=>f.time[i].slice(5).replace("-","月")+"日").join("、")}に雨の可能性が高いです。`:"今週は大きな雨の予報はありません。");
- }).join("");
-}
-function say(t){
- speechSynthesis.cancel();
- const u=new SpeechSynthesisUtterance(t);
- u.lang="ja-JP";u.rate=1;
- const v=speechSynthesis.getVoices().find(v=>v.lang&&v.lang.replace("_","-").startsWith("ja"));
- if(v)u.voice=v;
- u.onerror=e=>$("st").textContent="読み上げエラー: "+e.error;
- u.onstart=()=>$("st").textContent="読み上げ中...";
- u.onend=()=>$("st").textContent="";
- speechSynthesis.speak(u);
-}
-async function speak(){
- speechSynthesis.cancel();
- speechSynthesis.speak(new SpeechSynthesisUtterance(" "));
- if(!data.length)await load();
- if(!data.length)return;
- if(!speechSynthesis.getVoices().length)await new Promise(r=>{speechSynthesis.onvoiceschanged=r;setTimeout(r,1500)});
- say("おはようございます。"+text());
-}
-let armed=false,last="";
-async function arm(){
- if(armed)return;armed=true;
- try{await navigator.wakeLock.request("screen")}catch(e){}
- await load();speechSynthesis.speak(new SpeechSynthesisUtterance(""));
- $("st").textContent="毎朝9時に読み上げます(このページを開いたままにしてください)";
- setInterval(()=>{
-  const d=new Date(),k=d.toDateString();
-  if(d.getHours()==9&&d.getMinutes()==0&&last!=k){last=k;load().then(speak)}
- },15000);
 }
 if($("c1").value||$("c2").value)load();
 </script></body></html>
