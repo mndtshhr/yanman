@@ -15,7 +15,7 @@ button{padding:8px 12px;font-size:15px}
 #st{font-size:13px;color:#555}
 </style></head><body>
 <h3>週間天気(降水)</h3>
-<div class="row"><input id="c1" placeholder="地点1 例:東京"><input id="c2" placeholder="地点2 例:大阪"></div>
+<div class="row"><input id="c1" placeholder="地点1 例:福岡"><input id="c2" placeholder="地点2 例:東京"></div>
 <div class="row">
 <button onclick="load()">表示</button>
 <button onclick="speak()">今すぐ読み上げ</button>
@@ -24,37 +24,54 @@ button{padding:8px 12px;font-size:15px}
 <script>
 const W=c=>c==0?["快晴","☀️"]:c<=2?["晴れ時々くもり","🌤️"]:c==3?["くもり","☁️"]:c<=48?["霧","🌫️"]:
 c<=57?["霧雨","🌦️"]:c<=67?["雨","🌧️"]:c<=77?["雪","❄️"]:c<=82?["にわか雨","🌦️"]:c<=86?["雪","❄️"]:["雷雨","⛈️"];
+const P={"東京":[35.69,139.69],"大阪":[34.69,135.50],"福岡":[33.59,130.40],"札幌":[43.06,141.35],
+"仙台":[38.27,140.87],"名古屋":[35.18,136.91],"京都":[35.01,135.77],"神戸":[34.69,135.20],
+"横浜":[35.44,139.64],"広島":[34.40,132.46],"那覇":[26.21,127.68],"新潟":[37.92,139.04],
+"熊本":[32.80,130.71],"鹿児島":[31.60,130.56],"長崎":[32.75,129.88],"金沢":[36.56,136.66]};
 let data=[];
 const $=id=>document.getElementById(id);
 $("c1").value=localStorage.c1||"";$("c2").value=localStorage.c2||"";
 async function geo(n){
- const r=await(await fetch("https://geocoding-api.open-meteo.com/v1/search?count=1&language=ja&name="+encodeURIComponent(n))).json();
- if(!r.results)throw n+"が見つかりません";return r.results[0];}
+ const k=n.replace(/[都府県市]$/,"");
+ if(P[k])return{name:n,latitude:P[k][0],longitude:P[k][1]};
+ for(const q of["&countryCode=JP&language=ja","&language=ja","&language=en"]){
+  try{
+   const r=await(await fetch("https://geocoding-api.open-meteo.com/v1/search?count=1"+q+"&name="+encodeURIComponent(n))).json();
+   if(r.results&&r.results.length)return r.results[0];
+  }catch(e){}
+ }
+ throw n+"が見つかりません";
+}
 async function load(){
- try{
-  localStorage.c1=$("c1").value;localStorage.c2=$("c2").value;
-  data=[];$("out").innerHTML="";
-  for(const id of["c1","c2"]){
-   const n=$(id).value.trim();if(!n)continue;
+ $("st").textContent="読み込み中...";
+ localStorage.c1=$("c1").value;localStorage.c2=$("c2").value;
+ data=[];$("out").innerHTML="";
+ const errs=[];
+ for(const id of["c1","c2"]){
+  const n=$(id).value.trim();if(!n)continue;
+  try{
    const g=await geo(n);
-   const f=(await(await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${g.latitude}&longitude=${g.longitude}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum&timezone=auto&forecast_days=7`)).json()).daily;
+   const j=await(await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${g.latitude}&longitude=${g.longitude}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum&timezone=auto&forecast_days=7`)).json();
+   const f=j.daily;
    data.push({name:n,f});
-   $("out").innerHTML+=`<div class="city"><b>${g.name}</b><div class="days">`+
+   $("out").innerHTML+=`<div class="city"><b>${n}</b><div class="days">`+
     f.time.map((t,i)=>{const w=W(f.weather_code[i]),p=f.precipitation_probability_max[i]||0;
     return `<div class="d">${t.slice(5).replace("-","/")}<br>${w[1]}<div class="bar"><i style="height:${p*0.6}px"></i></div>${p}%<br>${Math.round(f.temperature_2m_max[i])}/${Math.round(f.temperature_2m_min[i])}°</div>`}).join("")+`</div></div>`;
-  }
- }catch(e){$("st").textContent="エラー: "+e}
+  }catch(e){errs.push(e)}
+ }
+ $("st").textContent=errs.length?"エラー: "+errs.join(" / "):"";
 }
 function text(){
  return data.map(({name,f})=>{
-  const w=W(f.weather_code[0])[0],p=f.precipitation_probability_max[0];
-  const rain=f.time.map((t,i)=>f.precipitation_probability_max[i]>=60?i:-1).filter(i=>i>0);
+  const w=W(f.weather_code[0])[0],p=f.precipitation_probability_max[0]||0;
+  const rain=f.time.map((t,i)=>(f.precipitation_probability_max[i]||0)>=60?i:-1).filter(i=>i>=0);
   return `${name}の今日は${w}、最高${Math.round(f.temperature_2m_max[0])}度、最低${Math.round(f.temperature_2m_min[0])}度、降水確率${p}パーセント。`+
   (rain.length?`今週は${rain.map(i=>f.time[i].slice(5).replace("-","月")+"日").join("、")}に雨の可能性が高いです。`:"今週は大きな雨の予報はありません。");
  }).join("");
 }
 async function speak(){
  if(!data.length)await load();
+ if(!data.length)return;
  speechSynthesis.cancel();
  const u=new SpeechSynthesisUtterance("おはようございます。"+text());
  u.lang="ja-JP";speechSynthesis.speak(u);
@@ -70,5 +87,5 @@ async function arm(){
   if(d.getHours()==9&&d.getMinutes()==0&&last!=k){last=k;load().then(speak)}
  },15000);
 }
-if(data.length==0&&$("c1").value)load();
+if($("c1").value||$("c2").value)load();
 </script></body></html>
